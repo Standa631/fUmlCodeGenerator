@@ -37,20 +37,23 @@ import org.modeldriven.alf.uml.Type;
 import org.modeldriven.alf.uml.ValueSpecificationAction;
 
 public class JavaActivityCodeGenerator {
-	
+
+	protected String namespacePrefix;
+
 	protected Set<ActivityNode> generatedNode = new HashSet<>();
-	
-	//TODO
-	//pri generovani kodu activitynodu musi byt jiz vygenerovany jeho vstupy
-	
+
+	public JavaActivityCodeGenerator(String namespacePrefix) {
+		this.namespacePrefix = namespacePrefix;
+	}
+
 	public String getActivityBodyCode(Activity activity) {
 		StringBuilder s = new StringBuilder();
-		
-		//getActivityBodyCodeRecurse(s, 0, activity.getNode());
-		
+
+		// getActivityBodyCodeRecurse(s, 0, activity.getNode());
+
 		generatedNode.clear();
 		getActivityBodyCodeInputFirst(s, activity.getNode());
-		
+
 		return s.toString();
 	}
 
@@ -64,39 +67,45 @@ public class JavaActivityCodeGenerator {
 			nodeToCode(out, n);
 		}
 	}
-	
+
 	public void getActivityBodyCodeInputFirst(StringBuilder out, List<ActivityNode> nodes) {
 		getActivityBodyCodeInputFirst(out, nodes, null);
 	}
+
 	public void getActivityBodyCodeInputFirst(StringBuilder out, List<ActivityNode> nodes, Clause forCond) {
 		for (ActivityNode node : nodes) {
 			getActivityBodyCodeInputFirst(out, node, forCond);
 		}
 	}
-	
+
 	public void getActivityBodyCodeInputFirst(StringBuilder out, ActivityNode node) {
 		getActivityBodyCodeInputFirst(out, node, null);
 	}
+
 	public void getActivityBodyCodeInputFirst(StringBuilder out, ActivityNode node, Clause forCond) {
 		if (generatedNode.contains(node)) {
-			//out.append("Skip1: " + node + "\n");
+			// out.append("Skip1: " + node + "\n");
 			return;
 		}
-//		if (forCond == null && isInCond(node.getOwner())) {
-//			out.append("Skip2: " + node + "\n");
-//			return;
-//		}
+		// if (forCond == null && isInCond(node.getOwner())) {
+		// out.append("Skip2: " + node + "\n");
+		// return;
+		// }
 		if (forCond != null && !isParent(node.getOwner(), forCond)) {
-			//out.append("Skip3: " + node + "\n");
+			// out.append("Skip3: " + node + "\n");
 			return;
 		}
 		generatedNode.add(node);
-		
-		//test
-//		if (node.getOwner() != null && node.getOwner() instanceof ActivityNode)
-//			getActivityBodyCodeInputFirst(out, (ActivityNode)node.getOwner(), forCond);
-		
-		//vstupy
+
+		// out.append("Start: " + node + "\n");
+
+		// test
+		// if (node.getOwner() != null && node.getOwner() instanceof
+		// ActivityNode)
+		// getActivityBodyCodeInputFirst(out, (ActivityNode)node.getOwner(),
+		// forCond);
+
+		// vstupy
 		for (ActivityEdge ie : node.getIncoming()) {
 			getActivityBodyCodeInputFirst(out, ie.getSource(), forCond);
 		}
@@ -114,24 +123,49 @@ public class JavaActivityCodeGenerator {
 				getActivityBodyCodeInputFirst(out, clause.getDecider(), forCond);
 			}
 		}
-		
-		//jsem pin - generovat vlastnika
-		if (node instanceof Pin) {
+
+		// jsem vystupni pin - prvne generovat vlastnika
+		if (node instanceof OutputPin) {
 			Element e = node.getOwner();
 			if (e instanceof ActivityNode)
 				getActivityBodyCodeInputFirst(out, (ActivityNode) e);
 		}
-		
-		//out.append("Code: " + node + "\n");	
+
+		// jsem vstupni pin - generovat vstupy
+		if (node instanceof InputPin) {
+			InputPin ip = (InputPin) node;
+			for (ActivityEdge ed : ip.getIncoming()) {
+				getActivityBodyCodeInputFirst(out, ed.getSource());
+			}
+		}
+
+		if (node instanceof ReadStructuralFeatureAction) {
+			ReadStructuralFeatureAction t = (ReadStructuralFeatureAction) node;
+			getActivityBodyCodeInputFirst(out, t.getObject());
+		}
+
+		if (node instanceof AddStructuralFeatureValueAction) {
+			AddStructuralFeatureValueAction t = (AddStructuralFeatureValueAction) node;
+			getActivityBodyCodeInputFirst(out, t.getObject());
+		}
+
+		// parametry
+		if (node instanceof CallAction) {
+			CallAction t = (CallAction) node;
+			getActivityBodyCodeInputFirst(out, listInputPinToActivityNodeList(t.getArgument()));
+		}
+
+		//TODO
+		//out.append("Code: " + node + "\n");
 		nodeToCode(out, node);
-		
-		//vnitrni nody - ne u podminky (generovano jinde)
+
+		// vnitrni nody - ne u podminky (generovano jinde)
 		if (node instanceof StructuredActivityNode && !(node instanceof ConditionalNode)) {
 			StructuredActivityNode san = (StructuredActivityNode) node;
 			getActivityBodyCodeInputFirst(out, san.getNode(), forCond);
 		}
-		
-		//vystupy
+
+		// vystupy
 		for (ActivityEdge oe : node.getOutgoing()) {
 			getActivityBodyCodeInputFirst(out, oe.getTarget(), forCond);
 		}
@@ -143,31 +177,44 @@ public class JavaActivityCodeGenerator {
 				}
 			}
 		}
-//		if (node instanceof ConditionalNode) {
-//			ConditionalNode cn = (ConditionalNode) node;
-//			for (Clause clause : cn.getClause()) {
-//				getActivityBodyCodeInputFirst(out, listToActivityNodeList(clause.getBody()));
-//			}
-//		}
+		// if (node instanceof ConditionalNode) {
+		// ConditionalNode cn = (ConditionalNode) node;
+		// for (Clause clause : cn.getClause()) {
+		// getActivityBodyCodeInputFirst(out,
+		// listToActivityNodeList(clause.getBody()));
+		// }
+		// }
 	}
-	
+
 	public boolean isParent(Element node, Element parent) {
-		if (node == parent) return true;
-		if (node.getOwner() != null) return isParent(node.getOwner(), parent);
+		if (node == parent)
+			return true;
+		if (node.getOwner() != null)
+			return isParent(node.getOwner(), parent);
 		return false;
 	}
-	
+
 	public boolean isInCond(Element node) {
-		if (node instanceof ConditionalNode) return true;
-		if (node.getOwner() != null) return isInCond(node.getOwner());
+		if (node instanceof ConditionalNode)
+			return true;
+		if (node.getOwner() != null)
+			return isInCond(node.getOwner());
 		return false;
 	}
-	
-	
+
 	public List<ActivityNode> listToActivityNodeList(List<ExecutableNode> list) {
 		List<ActivityNode> lan = new ArrayList<>();
 		for (ExecutableNode en : list) {
 			lan.add(en);
+		}
+		return lan;
+	}
+
+	public List<ActivityNode> listInputPinToActivityNodeList(List<InputPin> list) {
+		List<ActivityNode> lan = new ArrayList<>();
+		for (InputPin en : list) {
+			for (ActivityEdge edge : en.getIncoming())
+				lan.add(edge.getSource());
 		}
 		return lan;
 	}
@@ -199,8 +246,7 @@ public class JavaActivityCodeGenerator {
 					name = "new " + name;
 				}
 			}
-		}
-		else {
+		} else {
 			if (name.equals("Div")) {
 				return "/";
 			} else if (name.equals("Concat")) {
@@ -213,16 +259,16 @@ public class JavaActivityCodeGenerator {
 		}
 		return name;
 	}
-	
+
 	public String getCallParams(CallAction ca) {
 		String out = "";
 		String name = getCallName(ca);
 		boolean first = true;
-		
+
 		if (name.equals("Log.d")) {
 			out += "\"fUml\", ";
 		}
-		
+
 		for (InputPin ip : ca.getArgument()) {
 			if (!first) {
 				if (isInfix(name))
@@ -235,17 +281,21 @@ public class JavaActivityCodeGenerator {
 		}
 		return out;
 	}
-	
+
 	public String getTypeName(Type t) {
-		//null literal
+		// null literal
 		if (t == null)
 			return "Object";
-		
-		String out = t.getName();
-		if (out.equals("Integer") || out.equals("Natural")) out = "Integer";
-		else if (out.equals("Real")) out = "Double";
-		else if (out.equals("Boolean")) out = "Boolean";
-		
+
+		String out = UmlFrameworkWrapper.getQualifiedTypeName(t, namespacePrefix);
+
+		if (out.equals("Integer") || out.equals("Natural"))
+			out = "Integer";
+		else if (out.equals("Real"))
+			out = "Double";
+		else if (out.equals("Boolean"))
+			out = "Boolean";
+
 		return out;
 	}
 
@@ -253,7 +303,6 @@ public class JavaActivityCodeGenerator {
 		String tmp = "+-*/<<=>>==!=";
 		return tmp.contains(name);
 	}
-	
 
 	public String getNodeSource(ActivityNode node) {
 		// literal
@@ -262,7 +311,13 @@ public class JavaActivityCodeGenerator {
 		}
 		// vstupni parametr
 		else if (node instanceof InputPin) {
-			return getInBracketIf(node.getName(), "Input(");
+			String o = getInBracketIf(node.getName(), "Input(");
+			if (o == null && node.getName().startsWith("Passthru(")) {
+				StructuredActivityNode san = (StructuredActivityNode) node.getOwner();
+				ActivityNode an = san.getStructuredNodeInput().get(0).getIncoming().get(0).getSource();
+				return getNodeSource(an);
+			}
+			return o;
 		} else if (node instanceof OutputPin) {
 			OutputPin op = (OutputPin) node;
 			// literal
@@ -282,6 +337,15 @@ public class JavaActivityCodeGenerator {
 				StructuredActivityNode san = (StructuredActivityNode) node.getOwner();
 				ActivityNode an = san.getStructuredNodeInput().get(0).getIncoming().get(0).getSource();
 				return getNodeSource(an);
+			} else if (node.getOwner() instanceof ConditionalNode) {
+				return "0";
+			} else if (node.getOwner() instanceof LoopNode) {
+				//return "0";
+				TmpVar var = TmpVar.getVar(node);
+				if (var == null)
+					return "0";
+				return var.name;
+
 			}
 		}
 		// promena
@@ -302,26 +366,26 @@ public class JavaActivityCodeGenerator {
 		if (s != null) {
 			return s;
 		} else {
-			Global.log("Cant get source!!! " + source);
-			return "/* " + source + " --- " + source.getOwner() + " */";
+			// Global.log("Cant get source!!! " + source);
+			// return "/* " + source + " --- " + source.getOwner() + " */";
 		}
-		// return null;
+		return null;
 	}
-	
+
 	public boolean isArray(MultiplicityElement elm) {
 		return elm.getUpper() > 1 || elm.getUpper() < 0;
 	}
-	
+
 	public String getTmpLeftSide(ActivityNode fn) {
 		String type = "";
 		Type t = null;
-		
+
 		ActivityNode source = fn;
 		if (fn.getIncoming().size() > 0) {
 			ActivityEdge inEdge = fn.getIncoming().get(0);
 			source = inEdge.getSource();
 		}
-		
+
 		if (source instanceof Pin) {
 			Pin p = (Pin) source;
 			t = p.getType();
@@ -363,11 +427,19 @@ public class JavaActivityCodeGenerator {
 		String name = getCallName(ca);
 		out += type + var;
 
-		if (!isInfix(name))
+		if (!isInfix(name)) {
+			if (ca instanceof CallOperationAction) {
+				CallOperationAction coa = (CallOperationAction) ca;
+				ActivityNode target = coa.getTarget().getIncoming().get(0).getSource();
+				if (!name.startsWith("new "))
+					name = getNodeSource(target) + "." + name;
+			}
+
 			out += name + "(";
-		
+		}
+
 		out += getCallParams(ca);
-		
+
 		if (!isInfix(name))
 			out += ")";
 		out += ";\n";
@@ -386,7 +458,6 @@ public class JavaActivityCodeGenerator {
 		}
 
 		if (node instanceof TestIdentityAction) {
-			// TODO
 			TestIdentityAction tia = (TestIdentityAction) node;
 			String first = getEdgeSource(tia.getFirst().getIncoming().get(0));
 			String second = getEdgeSource(tia.getFirst().getIncoming().get(0));
@@ -414,18 +485,21 @@ public class JavaActivityCodeGenerator {
 		else if (node instanceof ForkNode) {
 			ForkNode fn = (ForkNode) node;
 			ActivityEdge inEdge = fn.getIncoming().get(0);
-			if (inEdge instanceof ObjectFlow) {				
+			if (inEdge instanceof ObjectFlow) {
 				String typeName = getTmpLeftSide(fn);
 				String sourceVar = getEdgeSource(inEdge);
-				out.append(typeName + " = " + sourceVar + ";\n");
+				if (sourceVar != null) {
+					out.append(typeName + " = " + sourceVar + ";\n");
+				}
+				// TODO
+				else {
+					//out.append(typeName + " = " + sourceVar + ";\n");
+				}
 			}
 		}
 
-		// TODO: read write atributy objektu
-		
 		if (node instanceof ReadSelfAction) {
-			// TODO
-			//out.append("this.\n");
+
 		}
 
 		if (node instanceof AddStructuralFeatureValueAction) {
@@ -433,20 +507,23 @@ public class JavaActivityCodeGenerator {
 			StructuredActivityNode san = (StructuredActivityNode) fva.getOwner();
 			String sourceObj = getEdgeSource(san.getStructuredNodeInput().get(0).getIncoming().get(0));
 
-			ClearStructuralFeatureAction ca = (ClearStructuralFeatureAction) fva.getObject().getIncoming().get(0).getSource().getOwner();
+			ClearStructuralFeatureAction ca = (ClearStructuralFeatureAction) fva.getObject().getIncoming().get(0)
+					.getSource().getOwner();
 			ActivityNode targetNode = (ActivityNode) ca.getObject().getIncoming().get(0).getSource().getOwner();
 			String targetObj = "";
+
 			if (targetNode instanceof ReadSelfAction) {
 				targetObj = "this";
-			} 
-			else if (targetNode instanceof StructuredActivityNode && targetNode.getName().startsWith("LocalNameDeclarationStatement@")) {
+			} else if (targetNode instanceof StructuredActivityNode
+					&& targetNode.getName().startsWith("LocalNameDeclarationStatement@")) {
 				StructuredActivityNode sn = (StructuredActivityNode) targetNode;
+
+				getActivityBodyCodeInputFirst(out, sn.getNode().get(0));
+
 				targetObj = getNodeSource(sn.getNode().get(0));
-			} 
-			else if (targetNode instanceof ReadStructuralFeatureAction) {
+			} else if (targetNode instanceof ReadStructuralFeatureAction) {
 				targetObj = getNodeSource(targetNode);
-			} 
-			else {
+			} else {
 				targetObj = "<NO>";
 			}
 
@@ -454,22 +531,22 @@ public class JavaActivityCodeGenerator {
 
 			out.append(targetObj + "." + sourceAtr + " = " + sourceObj + ";\n");
 		}
-		
+
 		if (node instanceof ReadStructuralFeatureAction) {
 			ReadStructuralFeatureAction fva = (ReadStructuralFeatureAction) node;
-			
-//			if (fva.getName().equals("Read(abc)")) {
-//				Global.log("break");
-//			}
-			
+
+			// if (fva.getName().equals("Read(abc)")) {
+			// Global.log("break");
+			// }
+
 			TmpVar tmpVar = TmpVar.getOrSetVar(node, fva.getResult().getType());
 			String targetObj = getTypeName(tmpVar.type) + " " + tmpVar.name;
-			
+
 			ActivityNode an = fva.getObject().getIncoming().get(0).getSource();
 			String sourceObj = getNodeSource(an);
-			
+
 			String sourceAtr = fva.getStructuralFeature().getName();
-			
+
 			out.append(targetObj + " = " + sourceObj + "." + sourceAtr + ";\n");
 		}
 
@@ -492,38 +569,57 @@ public class JavaActivityCodeGenerator {
 					else
 						var = "<NO>";
 				}
-				out.append((!first?"else ":"") + "if (" + var + ") {\n");
+				out.append((!first ? "else " : "") + "if (" + var + ") {\n");
 				first = false;
-				
-				getActivityBodyCodeInputFirst(out, listToActivityNodeList(clause.getBody()), clause);
-				
+
+				// getActivityBodyCodeInputFirst(out,
+				// listToActivityNodeList(clause.getBody()), clause);
+				getActivityBodyCodeInputFirst(out, listToActivityNodeList(clause.getBody()));
+
 				out.append("}\n");
 			}
 		}
 
+		// TODO
 		else if (node instanceof LoopNode) {
 			LoopNode ln = (LoopNode) node;
 
-			out.append("loop setup " + "\n");
-			List<ActivityNode> lan = new ArrayList<>();
-			for (ExecutableNode en : ln.getSetupPart()) {
-				lan.add(en);
+			// SETUP
+			int i = 0;
+			for (OutputPin op : ln.getLoopVariable()) {
+				TmpVar loopVar = TmpVar.getOrSetVar(op, op.getType());
+				out.append(getTypeName(loopVar.type) + " " + loopVar.name + " = "
+						+ getEdgeSource(ln.getLoopVariableInput().get(i).getIncoming().get(0)) + ";\n");
+				getActivityBodyCodeInputFirst(out, listToActivityNodeList(ln.getSetupPart()));
+				i++;
 			}
-			//getActivityBodyCodeInputFirst(out, lan, false);
 
+			out.append("while (true) {\n");
+
+			// DECIDER
+			getActivityBodyCodeInputFirst(out, ln.getDecider());
 			String var = null;
 			if (ln.getDecider().getIncoming().size() == 0)
 				var = getNodeSource(ln.getDecider());
 			else
-				var = TmpVar.getOrSetVar(ln.getDecider().getIncoming().get(0).getSource()).name;
-			 out.append("loop decider (" + var + ")\n");
+				var = getNodeSource(ln.getDecider().getIncoming().get(0).getSource());
+			out.append("if (!(" + var + ")) break;\n");
 
-			out.append("loop body " + "\n");
-			lan.clear();
-			for (ExecutableNode en : ln.getBodyPart()) {
-				lan.add(en);
+			// BODY
+			getActivityBodyCodeInputFirst(out, listToActivityNodeList(ln.getBodyPart()));
+
+			// PREPIS promennych cyklu
+			i = 0;
+			for (OutputPin ip : ln.getLoopVariable()) {
+				if (ln.getBodyOutput().get(i).getIncoming().size() <= 0) continue;
+				String source = getEdgeSource(ln.getBodyOutput().get(i).getIncoming().get(0));
+				//ActivityNode outNode = ln.getBodyOutput().get(i).getIncoming().get(0).getSource();
+				//TmpVar outVar = TmpVar.getOrSetVar(outNode);
+				out.append(getNodeSource(ip) + " = " + source +";\n");
+				i++;
 			}
-			//getActivityBodyCodeInputFirst(out, lan, false);
+
+			out.append("}\n");
 		}
 	}
 }

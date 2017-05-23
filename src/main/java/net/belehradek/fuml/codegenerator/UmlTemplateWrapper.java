@@ -88,7 +88,7 @@ public class UmlTemplateWrapper implements TemplateHashModel, TemplateMethodMode
 			} else if (key.equals("body")) {
 				return UmlFrameworkWrapper.getActivityBodyString(o);
 			} else if (key.equals("code")) {
-				JavaActivityCodeGenerator generator = new JavaActivityCodeGenerator();
+				JavaActivityCodeGenerator generator = new JavaActivityCodeGenerator(rootNamespace);
 				return generator.getActivityBodyCode(o);
 			} else if (key.equals("nodes")) {
 				return UmlFrameworkWrapper.getActivityAllNodes(o);
@@ -110,7 +110,7 @@ public class UmlTemplateWrapper implements TemplateHashModel, TemplateMethodMode
 			} else if (key.equals("isAbstract")) {
 				return c.getIsAbstract();
 			} else if (key.equals("qualifiedName")) {
-				return c.getQualifiedName();
+				return UmlFrameworkWrapper.getQualifiedTypeName(c, rootNamespace);
 			} else if (key.equals("imports")) {
 				return UmlWrapper.getImports(c);
 			} else if (key.equals("generals")) {
@@ -153,6 +153,8 @@ public class UmlTemplateWrapper implements TemplateHashModel, TemplateMethodMode
 			} else if (key.equals("visibility")) {
 				//"public", "private", "protected", "package"
 				return p.getVisibility();
+			} else if (key.equals("qualifiedType")) {
+				return UmlFrameworkWrapper.getQualifiedTypeName(p, rootNamespace) + (p.getUpper() > 1 || p.getUpper() < 0 ? "[]" : "");
 			}
 		}
 		
@@ -165,6 +167,8 @@ public class UmlTemplateWrapper implements TemplateHashModel, TemplateMethodMode
 					return o.getType().getName();
 				else
 					return null;
+			} else if (key.equals("qualifiedType")) {
+				return UmlFrameworkWrapper.getQualifiedTypeName(o.getType(), rootNamespace) + (o.getUpper() > 1 || o.getUpper() < 0 ? "[]" : "");
 			} else if (key.equals("visibility")) {
 				//"public", "private", "protected", "package"
 				return o.getVisibility();
@@ -198,6 +202,8 @@ public class UmlTemplateWrapper implements TemplateHashModel, TemplateMethodMode
 						return p.getType().getName();
 				} else
 					return null;
+			} else if (key.equals("qualifiedType")) {
+				return UmlFrameworkWrapper.getQualifiedTypeName(p, rootNamespace) + (p.getUpper() > 1 || p.getUpper() < 0 ? "[]" : "");
 			}
 		}
 		

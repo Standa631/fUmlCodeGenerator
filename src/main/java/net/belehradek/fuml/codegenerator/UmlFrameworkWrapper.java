@@ -44,6 +44,7 @@ import org.modeldriven.alf.uml.Property;
 import org.modeldriven.alf.uml.StructuredActivityNode;
 import org.modeldriven.alf.uml.TestIdentityAction;
 import org.modeldriven.alf.uml.Type;
+import org.modeldriven.alf.uml.TypedElement;
 import org.modeldriven.alf.uml.ValueSpecification;
 import org.modeldriven.alf.uml.ValueSpecificationAction;
 
@@ -55,6 +56,7 @@ public class UmlFrameworkWrapper extends UmlWrapper {
 			"Alf::Library",
 			"FoundationalModelLibrary", 
 			"PrimitiveTypes",
+			"Model::PrimitiveTypes",
 			
 			"Model::ActivityLibrary",
 			"Model::PersistentLibrary",
@@ -107,6 +109,24 @@ public class UmlFrameworkWrapper extends UmlWrapper {
 	}
 
 	// -------------------------------------------------------------------------
+	
+	public static String getQualifiedTypeName(TypedElement elem, String rootNamespace) {
+		return getQualifiedTypeName(elem.getType(), rootNamespace);
+	}
+	
+	public static String getQualifiedTypeName(Type t, String rootNamespace) {
+		String out;
+		if (isLibrary(t))
+			out = t.getName();
+		else {
+			out =  t.getQualifiedName();
+			out = out.replaceAll("::", ".");
+			if (rootNamespace != null)
+				out = out.replace("Model.", rootNamespace + ".");
+		}
+
+		return out;
+	}
 
 	public static Class_ getStartActivity(Operation o) {
 		Parameter p = o.getOwnedParameter().get(0);
